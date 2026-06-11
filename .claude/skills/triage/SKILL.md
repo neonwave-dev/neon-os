@@ -9,8 +9,8 @@ description: >
   tasks to run in parallel (default 3, hard cap 5); if omitted the coordinator proposes a count
   and confirms. This is a COORDINATOR workflow — it reads Linear directly, delegates each
   selected build to the `implementer` agent (and other global agents as suited), names branches
-  via `branch-pattern` with the Linear identifier embedded so Linear auto-links the PR, and
-  drives the Linear issue lifecycle (Todo/Backlog → In Progress). It does not write code itself.
+  on the branch name Linear suggests (so the PR auto-links the ticket), and drives the Linear
+  issue lifecycle (Todo/Backlog → In Progress). It does not write code itself.
 ---
 
 # Triage Skill (NeonOS)
@@ -32,9 +32,9 @@ gather status        ──▶  rank + select       ──▶  fan out N in para
 **Project coordinates (Linear):**
 - Team **NeonWave** (key `NEO`) · Project **NeonOS** (`38e4d31c-021e-4825-9d21-fd0bdc42aa35`).
 - Statuses (lifecycle): `Backlog` → `Todo` → `In Progress` → `In Review` → `Done`.
-- Conventions live in memory [[neonwave-linear-conventions]]: estimates Fibonacci→21;
-  every issue carries an **Area** label (`area:ci|docs|agent|core|cli`) **and** a **Type**
-  (`Feature|Improvement|Bug`). `save_issue(labels=[...])` **replaces** the set — re-pass both.
+- Conventions (also documented in the repo's `CLAUDE.md`, which is authoritative): estimates
+  Fibonacci→21; every issue carries an **Area** label (`area:ci|docs|agent|core|cli`) **and** a
+  **Type** (`Feature|Improvement|Bug`). `save_issue(labels=[...])` **replaces** the set — re-pass both.
 
 ---
 
@@ -63,7 +63,9 @@ list_issues(team="NeonWave", project="NeonOS", limit=100)
 
 Bucket by `status` / `statusType`:
 - **Candidates** = `Backlog` (`backlog`) + `Todo` (`unstarted`) that are **leaves** (no sub-issues)
-  and **unblocked** (no open parent/dependency, no unresolved decision).
+  and **unblocked** — no unresolved blocking dependency or open decision. Belonging to an epic
+  (a non-null `parentId`) is **not** a blocker: an epic parent is just a grouping, and its open
+  sub-issues are exactly the leaf candidates you want to surface.
 - **In-flight** = `In Progress` (`started`) + `In Review` (`started`) → **never re-propose**.
 - **Done** (`completed`) / archived → ignore.
 
@@ -73,15 +75,15 @@ priority (`1`=Urgent…`4`=Low), `estimate`, `labels`, and `parentId` (epic memb
 the rank. **Epics are parent issues** (e.g. NEO-27) — surface their open **sub-issues** as the
 real candidates, not the parent.
 
-**Delivery state — recent PRs + worktrees** (repo root `C:\Users\chris\projects\me\neonos`):
+**Delivery state — recent PRs + worktrees** (run from the repo root):
 
 ```powershell
 gh pr list --state all --limit 20 --json number,title,state,headRefName,mergedAt,updatedAt
 git worktree list                 # what's already checked out / in progress locally
 ```
 
-Reconcile: drop any Linear candidate whose `gitBranchName` token (e.g. `neo-22`) appears in an
-open PR/worktree even if Linear status lags. Linear status is the primary signal; PRs/worktrees
+Reconcile: drop any Linear candidate whose branch token — the lowercased issue id, e.g. `neo-22`
+for `NEO-22` — appears in an open PR/worktree even if Linear status lags. Linear status is the primary signal; PRs/worktrees
 are the backstop. (For deeper investigation — "is this actually blocked?" — delegate a read-only
 sweep to the **`researcher`** agent; it can reach Linear + `gh` via ToolSearch.)
 
@@ -128,18 +130,18 @@ Take the top `N` (`--next`). **Confirm the selection with the user before fannin
 
 For **each** selected issue, set up an isolated lane and delegate:
 
-1. **Branch + worktree** — create a worktree under `.claude/worktrees/` on a branch named per
-   the **`branch-pattern`** skill **with the Linear identifier as the ticket segment** so Linear
-   auto-links the PR to the issue. Map Type→branch type: `Feature`→`feat`, `Bug`→`fix`,
-   `Improvement`→`refactor`/`chore`; `area:docs`→`docs`; `area:ci`→`ci`. Examples:
-   `agent-feat/NEO-26/sqlite-schema-v0`, `agent-fix/NEO-39/doctor-windows-cmd-shim`.
-   (Linear matches the `NEO-26` token anywhere in the branch name — this keeps the user's
-   branch-pattern convention **and** Linear's PR↔issue auto-link. Don't use Linear's raw
-   `chris/neo-…` default; it violates branch-pattern.)
+1. **Branch + worktree** — create a worktree under `.claude/worktrees/` on the branch name
+   **Linear suggests** for the issue (its `gitBranchName`, e.g. `chris/neo-26-sqlite-schema-v0`).
+   Per the repo's `CLAUDE.md`, **prefer this suggested name** so the PR auto-links the ticket —
+   it already embeds the issue identifier (`neo-26`), which is what Linear matches on. (`CLAUDE.md`
+   also points at the active `branch-pattern`; where the Linear suggestion diverges from that
+   generic `<type>/<ticket>/name` shape, `CLAUDE.md`'s explicit "prefer Linear's suggestion" wins
+   for NeonOS — auto-linking is the goal. The `branch-pattern` regex allows lowercase ticket
+   letters so the `neo-26` token validates.)
 2. **Move the Linear issue → In Progress** as the lane starts (lifecycle: `Backlog`/`Todo` →
    `In Progress`). Use `save_issue(id, state="In Progress")`. **Do not touch labels here** —
    `save_issue` replaces the full label set, so omit `labels` entirely (passing a partial set
-   would drop the Area or Type label). See [[neonwave-linear-conventions]].
+   would drop the Area or Type label). See the conventions in `CLAUDE.md`.
 3. **Dev server (only for `apps/docs`, the Astro Starlight site).** Most NeonOS work is Rust/CLI
    (`cargo`) or library/config — **no server, skip this step**. Only when the lane touches the
    docs site and needs a live preview does the coordinator launch it in its OWN session as a
@@ -179,7 +181,7 @@ criteria).
   reconcile against Linear status **and** `gh pr list` first.
 - Don't estimate or build epic **parents** — surface their sub-issues as candidates.
 - Don't pass a partial `labels` set to `save_issue` — it replaces the whole set and drops Area/Type.
-- Don't hand-pick branch names freeform — `branch-pattern` owns the format; the Linear `NEO-NN`
-  identifier owns the ticket segment.
+- Don't hand-pick branch names freeform — use Linear's suggested `gitBranchName` (per `CLAUDE.md`)
+  so the PR auto-links the issue.
 - Don't write code in the coordinator — delegate to `implementer`/`debugger`.
 - Don't assume `port-registry` or `perf-auditor` exist here — they're chriscoppola.me-local.

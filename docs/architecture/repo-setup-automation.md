@@ -1,6 +1,6 @@
 # Retrospective: Automating Open-Source Repo Setup (`neon repo`)
 
-> Status: Design note + retrospective. Written after bootstrapping `MyNameReallySux/neonos`
+> Status: Design note + retrospective. Written after bootstrapping `neonwave-dev/neon-os`
 > Phase 0 by hand (scaffold → push → harden). Captures what we did, what bit us, and how to
 > turn the whole thing into `neon repo init` + `neon repo harden` (or a standalone script).
 
@@ -87,8 +87,10 @@ Enforcing the branch-naming convention (the `branch-pattern` regex) as a ruleset
 (`branch_name_pattern`, one of GitHub's **metadata restriction** rules) fails on a
 **personally-owned** repo. The API returns `422 Validation Failed — Invalid rule
 'branch_name_pattern'` for *any* pattern (even a trivial `starts_with`), because metadata
-restriction rules are an **organization-only** feature. neonos is `owner.type: User`, so there
-is no server-side path — not via API, not via the Settings → Rules UI.
+restriction rules are an **organization-only** feature. At bootstrap time the repo was
+personally-owned (`owner.type: User`), so there was no server-side path — not via API, not via
+the Settings → Rules UI. (The repo has since moved to the `neonwave-dev` org, which makes the
+ruleset path available.)
 
 Substitutes, in order of preference:
 - **CI guard** (works on user repos): a `Branch Name` workflow that validates `github.head_ref`
@@ -193,7 +195,7 @@ Legend: **A** = fully automatable (API/commit) · **M** = manual (human only) ·
 | Languages | TS / Rust / both | which CI jobs, CodeQL languages, Dependabot ecosystems |
 
 The generator should take a small config object (a `neon.repo.toml` or prompts) and derive the
-rest. OSS + solo + both-languages + defer-publish was the profile used for neonos.
+rest. OSS + solo + both-languages + defer-publish was the profile used for neon-os.
 
 ---
 

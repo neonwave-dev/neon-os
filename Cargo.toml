@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
   "crates/stub-crate",
-  "crates/neon"
+  "crates/neon",
+  "crates/neon-db"
 ]
 
 [workspace.package]

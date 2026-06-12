@@ -6,20 +6,20 @@ pub mod widgets;
 
 // --- Data collection ---
 
-pub struct ToolInfo {
-    pub name: String,
-    pub version: String,
+pub(crate) struct ToolInfo {
+    pub(crate) name: String,
+    pub(crate) version: String,
 }
 
-pub struct GitIdentity {
-    pub user_name: String,
-    pub user_email: String,
+pub(crate) struct GitIdentity {
+    pub(crate) user_name: String,
+    pub(crate) user_email: String,
 }
 
-pub struct RepoHealth {
-    pub branch: String,
-    pub short_head: String,
-    pub dirty_count: usize,
+pub(crate) struct RepoHealth {
+    pub(crate) branch: String,
+    pub(crate) short_head: String,
+    pub(crate) dirty_count: usize,
 }
 
 struct DiagData {

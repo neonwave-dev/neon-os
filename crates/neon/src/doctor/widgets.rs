@@ -15,12 +15,12 @@ use super::{GitIdentity, RepoHealth, ToolInfo};
 // --- Tooling pane ---
 
 /// Renders the "Tooling" pane: a table of `{name, version}` tool rows.
-pub struct ToolingPane<'a> {
+pub(crate) struct ToolingPane<'a> {
     tools: &'a [ToolInfo],
 }
 
 impl<'a> ToolingPane<'a> {
-    pub fn new(tools: &'a [ToolInfo]) -> Self {
+    pub(crate) fn new(tools: &'a [ToolInfo]) -> Self {
         Self { tools }
     }
 }
@@ -33,7 +33,7 @@ impl Widget for ToolingPane<'_> {
             .map(|t| {
                 Line::from(vec![
                     Span::raw(format!("  {:>6}  ", t.name)),
-                    Span::raw(t.version.clone()),
+                    Span::raw(t.version.as_str()),
                 ])
             })
             .collect();
@@ -47,12 +47,12 @@ impl Widget for ToolingPane<'_> {
 // --- Git Identity pane ---
 
 /// Renders the "Git Identity" pane: user name and email.
-pub struct GitIdentityPane<'a> {
+pub(crate) struct GitIdentityPane<'a> {
     identity: &'a GitIdentity,
 }
 
 impl<'a> GitIdentityPane<'a> {
-    pub fn new(identity: &'a GitIdentity) -> Self {
+    pub(crate) fn new(identity: &'a GitIdentity) -> Self {
         Self { identity }
     }
 }
@@ -72,12 +72,12 @@ impl Widget for GitIdentityPane<'_> {
 // --- Repo Health pane ---
 
 /// Renders the "Repo Health" pane: branch, HEAD, and dirty-file count.
-pub struct RepoHealthPane<'a> {
+pub(crate) struct RepoHealthPane<'a> {
     health: &'a RepoHealth,
 }
 
 impl<'a> RepoHealthPane<'a> {
-    pub fn new(health: &'a RepoHealth) -> Self {
+    pub(crate) fn new(health: &'a RepoHealth) -> Self {
         Self { health }
     }
 }

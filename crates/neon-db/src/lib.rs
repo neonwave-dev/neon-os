@@ -38,10 +38,10 @@ pub async fn open(db_url: &str) -> Result<DatabaseConnection> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use std::path::Path;
     use tempfile::TempDir;
 
-    fn sqlite_url(path: &PathBuf) -> String {
+    fn sqlite_url(path: &Path) -> String {
         format!("sqlite://{}?mode=rwc", path.display())
     }
 

@@ -110,7 +110,7 @@ nullable `project_id` in `config_entries`.
 Migrations are embedded in the `neon-db` crate via `sqlx::migrate!` and applied with
 `neon_db::run_migrations(db_url)`.  The single v0 migration file is:
 
-```
+```text
 crates/neon-db/migrations/0001_initial_schema.sql
 ```
 

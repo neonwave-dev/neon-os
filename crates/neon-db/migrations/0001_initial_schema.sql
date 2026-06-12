@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS memory_entries (
 
 CREATE TABLE IF NOT EXISTS config_entries (
     id          TEXT        NOT NULL PRIMARY KEY,   -- UUID v4 stored as text
-    project_id  TEXT,                               -- NULL = global config
+    project_id  TEXT        REFERENCES projects(id) ON DELETE CASCADE,  -- NULL = global config
     key         TEXT        NOT NULL,
     value       TEXT        NOT NULL,
     created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,

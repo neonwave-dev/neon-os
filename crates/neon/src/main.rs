@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 
 use neon_cli::doctor;
 use neon_cli::repo::{self, InitArgs};
+use neon_cli::setup;
 
 /// NeonOS CLI — developer environment diagnostics and tooling
 #[derive(Parser)]
@@ -21,6 +22,11 @@ enum Commands {
         #[command(subcommand)]
         command: RepoCommands,
     },
+    /// Machine setup and environment configuration
+    Setup {
+        #[command(subcommand)]
+        command: SetupCommands,
+    },
 }
 
 /// Subcommands for `neon repo`.
@@ -32,6 +38,13 @@ enum RepoCommands {
     Init(InitArgs),
 }
 
+/// Subcommands for `neon setup`.
+#[derive(Subcommand)]
+enum SetupCommands {
+    /// Probe and report machine capabilities (OS, shells, tools)
+    Detect,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -39,6 +52,9 @@ fn main() -> Result<()> {
         Commands::Doctor => doctor::gather()?,
         Commands::Repo { command } => match command {
             RepoCommands::Init(args) => repo::init(args)?,
+        },
+        Commands::Setup { command } => match command {
+            SetupCommands::Detect => setup::run_detect()?,
         },
     }
 

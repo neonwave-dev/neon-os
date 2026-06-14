@@ -832,10 +832,22 @@ pub struct PickTerminalArgs {
 ///
 /// Both sections are optional so that partial files round-trip cleanly — a
 /// file written by `pick-shell` has no `[terminal]` table yet and that is fine.
+///
+/// `extra` preserves any unknown top-level TOML tables/keys that future setup
+/// steps may have written, so that `pick-shell`/`pick-terminal` do not silently
+/// drop them on round-trip.  Only TOML tables (not bare scalars at the top
+/// level) are guaranteed to survive, because TOML requires tables to appear
+/// before any key/value pairs that follow them; bare top-level scalars in an
+/// existing file may cause a serialisation error if they appear after a
+/// recognised table section.  In practice all current setup steps write
+/// tables, so this is not a concern today.
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct SetupConfig {
     shell: Option<ShellSection>,
     terminal: Option<TerminalSection>,
+    /// Unknown top-level tables/keys preserved across read-modify-write cycles.
+    #[serde(flatten, default)]
+    extra: HashMap<String, toml::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -875,12 +887,19 @@ fn load_config(path: &PathBuf) -> Result<SetupConfig> {
 }
 
 /// Serialise `cfg` back to TOML and write it to `path`, creating parent dirs as needed.
+///
+/// Uses a write-to-temp-then-rename pattern so that a crash or interrupted
+/// write never leaves `setup.toml` in a truncated/corrupt state.  The temp
+/// file is placed in the same directory as the target so that the rename is an
+/// atomic same-filesystem operation on most kernels.
 fn save_config(path: &PathBuf, cfg: &SetupConfig) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
     let text = toml::to_string_pretty(cfg)?;
-    std::fs::write(path, text)?;
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, &text)?;
+    std::fs::rename(&tmp, path)?;
     Ok(())
 }
 
@@ -1242,6 +1261,7 @@ mod tests {
             terminal: Some(TerminalSection {
                 preferred: "windows-terminal".to_string(),
             }),
+            extra: HashMap::new(),
         };
         let serialized = toml::to_string_pretty(&cfg).expect("serialize");
         let deserialized: SetupConfig = toml::from_str(&serialized).expect("deserialize");
@@ -1263,5 +1283,86 @@ mod tests {
         let cfg: SetupConfig = toml::from_str(toml_str).expect("deserialize partial");
         assert_eq!(cfg.shell.as_ref().unwrap().preferred, "bash");
         assert!(cfg.terminal.is_none());
+    }
+
+    // --- Fix 1: unknown TOML tables are preserved on round-trip ---
+
+    #[test]
+    fn unknown_tables_preserved_on_roundtrip() {
+        // Simulate a future setup step writing [experimental] and [metrics] tables.
+        // pick-shell must not drop them when it updates [shell].
+        let input =
+            "[shell]\npreferred = \"bash\"\n\n[experimental]\nflag = true\n\n[metrics]\nenabled = false\n";
+        let cfg: SetupConfig = toml::from_str(input).expect("deserialize");
+        assert_eq!(cfg.shell.as_ref().unwrap().preferred, "bash");
+
+        // Re-serialise after a pick-shell update
+        let (updated, _) = apply_shell_choice(cfg, ShellChoice::Zsh);
+        let out = toml::to_string_pretty(&updated).expect("serialize");
+
+        assert!(
+            out.contains("[experimental]"),
+            "unknown table [experimental] must survive"
+        );
+        assert!(
+            out.contains("flag = true"),
+            "unknown table value must survive"
+        );
+        assert!(
+            out.contains("[metrics]"),
+            "unknown table [metrics] must survive"
+        );
+        assert!(
+            out.contains("enabled = false"),
+            "unknown table value must survive"
+        );
+        assert!(
+            out.contains("preferred = \"zsh\""),
+            "updated shell must be written"
+        );
+    }
+
+    // --- Fix 2: atomic write (write-to-tmp-then-rename) ---
+
+    #[test]
+    fn save_config_is_atomic_on_overwrite() {
+        let dir = std::env::temp_dir().join(format!(
+            "neon_test_atomic_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .subsec_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("setup.toml");
+
+        let c1 = SetupConfig {
+            shell: Some(ShellSection {
+                preferred: "bash".to_string(),
+            }),
+            terminal: None,
+            extra: HashMap::new(),
+        };
+        save_config(&path, &c1).expect("first write");
+        assert!(path.exists(), "config file should exist after first write");
+
+        // Second write overwrites the existing file — exercises rename-over-existing
+        let c2 = SetupConfig {
+            shell: Some(ShellSection {
+                preferred: "zsh".to_string(),
+            }),
+            terminal: None,
+            extra: HashMap::new(),
+        };
+        save_config(&path, &c2).expect("second write (rename over existing)");
+
+        let loaded: SetupConfig = toml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(loaded.shell.as_ref().unwrap().preferred, "zsh");
+
+        // Temp file should not be left behind
+        let tmp = path.with_extension("tmp");
+        assert!(!tmp.exists(), "tmp file must not be left behind");
+
+        std::fs::remove_dir_all(dir).ok();
     }
 }

@@ -1,6 +1,26 @@
+/// `neon setup` — machine setup and environment configuration.
+///
+/// This module is the root of the setup subcommand tree.  The `detect`
+/// subcommand lives here (alongside the shared detection helpers); the
+/// other subcommands live in sub-modules.
+pub mod common;
+pub mod diagnostics;
+pub mod docker;
+pub mod git_identity;
+pub mod npm_token;
+
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+// --- Re-exports used from main.rs ---
+pub use diagnostics::{run as run_diagnostics, DiagnosticsArgs};
+pub use docker::{
+    run_login as run_docker_login, run_logout as run_docker_logout, run_show as run_docker_show,
+    DockerLoginArgs, DockerLogoutArgs, DockerShowArgs,
+};
+pub use git_identity::{run as run_git_identity, GitIdentityArgs};
+pub use npm_token::{run as run_npm_token, NpmTokenArgs};
 
 // ============================================================
 // SECTION 1 — detect machine capabilities (neon setup detect)
@@ -270,7 +290,7 @@ pub fn print_report(report: &CapabilityReport) {
     print!("{}", format_report(report));
 }
 
-// --- Public entry point ---
+// --- Public entry point for detect ---
 
 pub fn run_detect() -> Result<()> {
     let report = detect()?;

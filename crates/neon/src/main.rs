@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use neon_cli::doctor;
@@ -63,7 +63,7 @@ enum SetupCommands {
     Diagnostics(DiagnosticsArgs),
     /// Install core apps (git, gh, docker, obsidian) — idempotent
     InstallApps(InstallAppsArgs),
-    /// Install language runtimes (node via nvm, python, rust, go)
+    /// Install language runtimes (node via nvm if absent, python, rust, go)
     InstallLanguages(InstallLanguagesArgs),
     /// Pick and persist the preferred shell
     PickShell(PickShellArgs),

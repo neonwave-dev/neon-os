@@ -1,7 +1,8 @@
-/// `neon setup install-languages` — idempotently install language toolchains.
+﻿/// `neon setup install-languages` — idempotently install language toolchains.
 ///
-/// Languages: nvm+node (LTS), python3, rustup, go.
+/// Languages: node (installed via nvm when absent), python, rustup, go.
 /// Each is probed first; already-present tools print ✓ and are skipped.
+/// Probe checks `node` on PATH — nvm is not required when node is already present.
 use anyhow::Result;
 
 use super::common::on_path;
@@ -163,7 +164,7 @@ fn install_steps(language: Language, platform: Platform) -> Option<LangInstallPl
                         "bash",
                         &[
                             "-c",
-                            "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash",
+                            "curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash",
                         ],
                     ),
                     LangInstallSpec::new("bash", &["-c", "source ~/.nvm/nvm.sh && nvm install --lts"]),
@@ -198,14 +199,14 @@ fn install_steps(language: Language, platform: Platform) -> Option<LangInstallPl
                         "bash",
                         &[
                             "-c",
-                            "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash",
+                            "curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash",
                         ],
                     ),
                     LangInstallSpec::new("bash", &["-c", "source ~/.nvm/nvm.sh && nvm install --lts"]),
                 ],
             },
             Language::Python => LangInstallPlan {
-                steps: vec![LangInstallSpec::new("brew", &["install", "python3"])],
+                steps: vec![LangInstallSpec::new("brew", &["install", "python"])],
             },
             Language::Rust => LangInstallPlan {
                 steps: vec![LangInstallSpec::new(
@@ -417,7 +418,7 @@ fn run_step(spec: &LangInstallSpec) -> Result<()> {
     let status = std::process::Command::new(&spec.program)
         .args(&spec.args)
         .status()
-        .map_err(|e| anyhow::anyhow!("failed to launch '{}': {e}", spec.program))?;
+        .map_err(|e| anyhow::anyhow!("failed to launch '{}': {e}", spec.display()))?;
 
     if status.success() {
         Ok(())
@@ -426,7 +427,7 @@ fn run_step(spec: &LangInstallSpec) -> Result<()> {
             .code()
             .map(|c| c.to_string())
             .unwrap_or_else(|| "?".to_string());
-        anyhow::bail!("'{}' exited with code {code}", spec.program)
+        anyhow::bail!("'{}' exited with code {code}", spec.display())
     }
 }
 
@@ -467,7 +468,7 @@ pub struct InstallLanguagesArgs {
     #[arg(long)]
     pub dry_run: bool,
     /// Comma-separated list of languages to skip (node, python, rust, go)
-    #[arg(long, value_delimiter = ',')]
+    #[arg(long, value_delimiter = ',', value_parser = ["node", "python", "rust", "go"])]
     pub skip: Vec<String>,
 }
 

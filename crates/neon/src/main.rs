@@ -3,7 +3,10 @@ use clap::{Parser, Subcommand};
 
 use neon_cli::doctor;
 use neon_cli::repo::{self, InitArgs};
-use neon_cli::setup;
+use neon_cli::setup::{
+    self, DiagnosticsArgs, DockerLoginArgs, DockerLogoutArgs, DockerShowArgs, GitIdentityArgs,
+    NpmTokenArgs,
+};
 
 /// NeonOS CLI — developer environment diagnostics and tooling
 #[derive(Parser)]
@@ -43,6 +46,18 @@ enum RepoCommands {
 enum SetupCommands {
     /// Probe and report machine capabilities (OS, shells, tools)
     Detect,
+    /// Set git user.name / user.email for local or global scope
+    GitIdentity(GitIdentityArgs),
+    /// Log in to a Docker registry
+    DockerLogin(DockerLoginArgs),
+    /// Log out of a Docker registry
+    DockerLogout(DockerLogoutArgs),
+    /// Show Docker auth state (which registries are logged in)
+    DockerShow(DockerShowArgs),
+    /// Write an npm auth token to ~/.npmrc
+    NpmToken(NpmTokenArgs),
+    /// Print a status report of the dev environment
+    Diagnostics(DiagnosticsArgs),
 }
 
 fn main() -> Result<()> {
@@ -55,6 +70,12 @@ fn main() -> Result<()> {
         },
         Commands::Setup { command } => match command {
             SetupCommands::Detect => setup::run_detect()?,
+            SetupCommands::GitIdentity(args) => setup::run_git_identity(&args)?,
+            SetupCommands::DockerLogin(args) => setup::run_docker_login(&args)?,
+            SetupCommands::DockerLogout(args) => setup::run_docker_logout(&args)?,
+            SetupCommands::DockerShow(args) => setup::run_docker_show(&args)?,
+            SetupCommands::NpmToken(args) => setup::run_npm_token(&args)?,
+            SetupCommands::Diagnostics(args) => setup::run_diagnostics(&args)?,
         },
     }
 

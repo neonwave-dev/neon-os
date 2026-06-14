@@ -252,6 +252,24 @@ pub fn format_plan(profile: &RepoProfile, path: Option<&PathBuf>) -> String {
     s
 }
 
+// --- Cross-field validation ---
+
+/// Validate constraints that span more than one profile field.
+///
+/// `--publish changesets|npm-now` implies npm release artifacts (`.changeset`,
+/// a release workflow), which only make sense for a JS/TS workspace. A Rust-only
+/// repo has no npm package to publish, so reject the combination instead of
+/// emitting a contradictory plan.
+fn validate(profile: &RepoProfile) -> Result<()> {
+    if matches!(profile.languages, Languages::Rust) && !matches!(profile.publish, Publish::None) {
+        anyhow::bail!(
+            "--publish changesets|npm-now requires --languages ts|both \
+             (a Rust-only repo has no npm package to publish)"
+        );
+    }
+    Ok(())
+}
+
 // --- Public entry point ---
 
 /// Entry point for `neon repo init`.
@@ -262,6 +280,7 @@ pub fn format_plan(profile: &RepoProfile, path: Option<&PathBuf>) -> String {
 pub fn init(args: InitArgs) -> Result<()> {
     let path = args.path.clone();
     let profile = args.into_profile();
+    validate(&profile)?;
     print!("{}", format_plan(&profile, path.as_ref()));
     Ok(())
 }
@@ -409,6 +428,44 @@ mod tests {
             labels.iter().any(|l| l.contains("release.yml")),
             "Changesets publish must include release.yml; got: {labels:?}"
         );
+    }
+
+    #[test]
+    fn validate_rejects_rust_only_with_publish() {
+        let profile = RepoProfile {
+            languages: Languages::Rust,
+            publish: Publish::NpmNow,
+            ..RepoProfile::default()
+        };
+        assert!(
+            validate(&profile).is_err(),
+            "rust-only + publish should be rejected"
+        );
+    }
+
+    #[test]
+    fn validate_allows_rust_only_without_publish() {
+        let profile = RepoProfile {
+            languages: Languages::Rust,
+            publish: Publish::None,
+            ..RepoProfile::default()
+        };
+        assert!(validate(&profile).is_ok());
+    }
+
+    #[test]
+    fn validate_allows_publish_with_ts_or_both() {
+        for languages in [Languages::Ts, Languages::Both] {
+            let profile = RepoProfile {
+                languages,
+                publish: Publish::NpmNow,
+                ..RepoProfile::default()
+            };
+            assert!(
+                validate(&profile).is_ok(),
+                "publish should be allowed for {languages:?}"
+            );
+        }
     }
 
     #[test]

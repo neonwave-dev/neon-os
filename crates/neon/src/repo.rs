@@ -67,13 +67,14 @@ pub enum Languages {
     /// Both TypeScript and Rust (the canonical NeonOS profile).
     #[default]
     Both,
-    /// Bare repo -- community/docs/.github files only; no language workspace.
+    /// Bare repo — community/docs/.github files only; no language workspace.
     Bare,
 }
 
-/// Open-source license for the repository.
+/// License for the repository.
 ///
-/// Controls which LICENSE file is emitted by `neon repo init`.
+/// Controls which LICENSE file is emitted by `neon repo init`, or omits it
+/// entirely for proprietary repositories.
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum License {
     /// MIT License (permissive).
@@ -89,7 +90,7 @@ pub enum License {
     Mpl2,
     /// The Unlicense (public domain dedication).
     Unlicense,
-    /// Proprietary -- no public license file.
+    /// Proprietary — no LICENSE file emitted.
     Proprietary,
 }
 
@@ -141,7 +142,7 @@ pub struct InitArgs {
     #[arg(long, value_enum, default_value = "both")]
     pub languages: Languages,
 
-    /// Open-source license for the repository.
+    /// License for the repository (use "proprietary" to omit the LICENSE file).
     #[arg(long, value_enum, default_value = "mit")]
     pub license: License,
 }
@@ -180,20 +181,22 @@ impl PlanItem {
 /// Derive the list of files / artifacts that `neon repo init` *would* generate for
 /// the given profile.  Pure function — no filesystem access, no I/O.
 pub fn plan(profile: &RepoProfile) -> Vec<PlanItem> {
-    let license_label = match profile.license {
-        License::Mit => "LICENSE (MIT)",
-        License::Apache2 => "LICENSE (Apache-2.0)",
-        License::Gpl3 => "LICENSE (GPL-3.0)",
-        License::Bsd3Clause => "LICENSE (BSD-3-Clause)",
-        License::Mpl2 => "LICENSE (MPL-2.0)",
-        License::Unlicense => "LICENSE (Unlicense)",
-        License::Proprietary => "LICENSE (proprietary \u{2014} no public license)",
+    let license_label: Option<&str> = match profile.license {
+        License::Mit => Some("LICENSE (MIT)"),
+        License::Apache2 => Some("LICENSE (Apache-2.0)"),
+        License::Gpl3 => Some("LICENSE (GPL-3.0)"),
+        License::Bsd3Clause => Some("LICENSE (BSD-3-Clause)"),
+        License::Mpl2 => Some("LICENSE (MPL-2.0)"),
+        License::Unlicense => Some("LICENSE (Unlicense)"),
+        License::Proprietary => None,
     };
 
     // Start with language-independent community & docs files; extend conditionally.
-    let mut items: Vec<PlanItem> = vec![
-        PlanItem::new("README.md"),
-        PlanItem::new(license_label),
+    let mut items: Vec<PlanItem> = vec![PlanItem::new("README.md")];
+    if let Some(label) = license_label {
+        items.push(PlanItem::new(label));
+    }
+    items.extend([
         PlanItem::new("CONTRIBUTING.md"),
         PlanItem::new("CODE_OF_CONDUCT.md (Contributor Covenant v2.1)"),
         PlanItem::new("SECURITY.md"),
@@ -204,7 +207,7 @@ pub fn plan(profile: &RepoProfile) -> Vec<PlanItem> {
         PlanItem::new(".github/ISSUE_TEMPLATE/feature_request.yml"),
         PlanItem::new(".github/ISSUE_TEMPLATE/documentation.yml"),
         PlanItem::new(".github/ISSUE_TEMPLATE/config.yml"),
-    ];
+    ]);
 
     // --- Dependabot and CodeRabbit (always) ---
     match profile.languages {

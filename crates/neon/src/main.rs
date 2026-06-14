@@ -6,7 +6,7 @@ use neon_cli::install::{self, InstallAppsArgs};
 use neon_cli::repo::{self, InitArgs};
 use neon_cli::setup::{
     self, DiagnosticsArgs, DockerLoginArgs, DockerLogoutArgs, DockerShowArgs, GitIdentityArgs,
-    NpmTokenArgs, SetupClaudeArgs,
+    NpmTokenArgs, PickShellArgs, PickTerminalArgs, SetupClaudeArgs,
 };
 
 /// NeonOS CLI — developer environment diagnostics and tooling
@@ -63,6 +63,10 @@ enum SetupCommands {
     Diagnostics(DiagnosticsArgs),
     /// Install core apps (git, gh, docker, obsidian) — idempotent
     InstallApps(InstallAppsArgs),
+    /// Pick and persist the preferred shell
+    PickShell(PickShellArgs),
+    /// Pick and persist the preferred terminal
+    PickTerminal(PickTerminalArgs),
 }
 
 fn main() -> Result<()> {
@@ -83,6 +87,8 @@ fn main() -> Result<()> {
             SetupCommands::NpmToken(args) => setup::run_npm_token(&args)?,
             SetupCommands::Diagnostics(args) => setup::run_diagnostics(&args)?,
             SetupCommands::InstallApps(args) => install::run_install_apps(args)?,
+            SetupCommands::PickShell(args) => setup::run_pick_shell(args)?,
+            SetupCommands::PickTerminal(args) => setup::run_pick_terminal(args)?,
         },
     }
 

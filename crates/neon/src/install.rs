@@ -51,7 +51,7 @@ impl App {
             apps.push(app);
         }
         if apps.is_empty() {
-            anyhow::bail!("--apps list must not be empty");
+            anyhow::bail!("--tool list must not be empty");
         }
         Ok(apps)
     }
@@ -347,7 +347,7 @@ pub fn format_plan(plan: &InstallPlan, dry_run: bool) -> String {
                 }
             }
             AppAction::Skipped => {
-                let _ = writeln!(s, "  ~ {name}: skipped (not in --apps list)");
+                let _ = writeln!(s, "  ~ {name}: skipped (not in --tool list)");
             }
             AppAction::PlatformUnsupported => {
                 let _ = writeln!(s, "  ! {name}: not yet supported on this platform");
@@ -451,10 +451,10 @@ pub fn print_summary(results: &[(&App, AppResult)]) {
 /// Arguments for `neon setup install-apps`.
 #[derive(Args, Debug)]
 pub struct InstallAppsArgs {
-    /// Comma-separated list of apps to install (default: all).
+    /// Comma-separated list of tools to install (default: all).
     /// Valid values: git, gh, docker, obsidian.
-    #[arg(long, value_name = "APPS")]
-    pub apps: Option<String>,
+    #[arg(long, value_name = "TOOLS")]
+    pub tools: Option<String>,
 
     /// Print what would run without executing anything.
     #[arg(long)]
@@ -470,7 +470,7 @@ pub struct InstallAppsArgs {
 /// Entry point for `neon setup install-apps`.
 pub fn run_install_apps(args: InstallAppsArgs) -> Result<()> {
     // Resolve the requested app list.
-    let requested: Vec<App> = match &args.apps {
+    let requested: Vec<App> = match &args.tools {
         Some(s) => App::parse_list(s)?,
         None => App::all().to_vec(),
     };

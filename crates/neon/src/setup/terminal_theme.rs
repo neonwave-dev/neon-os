@@ -6,8 +6,10 @@
 /// result).  Windows-only at runtime (returns a clear error on other platforms).
 use anyhow::{bail, Context, Result};
 use clap::Args;
+use json_comments::StripComments;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::io::Read as _;
 use std::path::PathBuf;
 
 // ============================================================
@@ -209,17 +211,18 @@ pub fn upsert_scheme(settings: &mut Value, scheme: Value) -> bool {
 /// that existing settings are preserved.  Font face and size are nested inside
 /// a `"font"` object, matching Windows Terminal's actual schema.
 pub fn apply_appearance(profile: &mut Value, appearance: &Appearance) {
-    if let Some(ref face) = appearance.font_face {
-        // font face/size live inside a nested "font" object
-        if profile.get("font").is_none() {
+    // Normalize the "font" field to an object before writing face/size.
+    // A pre-existing non-object value (e.g. a string from a legacy config)
+    // would panic on indexed assignment, so we reset it to an empty object.
+    if appearance.font_face.is_some() || appearance.font_size.is_some() {
+        if !profile.get("font").is_some_and(|v| v.is_object()) {
             profile["font"] = Value::Object(serde_json::Map::new());
         }
+    }
+    if let Some(ref face) = appearance.font_face {
         profile["font"]["face"] = Value::String(face.clone());
     }
     if let Some(size) = appearance.font_size {
-        if profile.get("font").is_none() {
-            profile["font"] = Value::Object(serde_json::Map::new());
-        }
         profile["font"]["size"] = Value::Number(
             serde_json::Number::from_f64(size as f64)
                 .unwrap_or_else(|| serde_json::Number::from(12)),
@@ -275,6 +278,10 @@ pub fn apply_appearance_to_settings(
                 "warning: profile '{profile_name}' not found in profiles.list — appearance not applied"
             );
         }
+    } else {
+        eprintln!(
+            "warning: profiles.list not found or not an array — cannot apply appearance to profile '{profile_name}'"
+        );
     }
 }
 
@@ -389,7 +396,7 @@ pub fn run(args: &CustomizeTerminalArgs) -> Result<()> {
     // --- Step 1: parse theme YAML ---
     let yaml_text = std::fs::read_to_string(&args.theme_file)
         .with_context(|| format!("could not read theme file: {}", args.theme_file.display()))?;
-    let theme: Theme = serde_yaml::from_str(&yaml_text).context("failed to parse theme YAML")?;
+    let theme: Theme = serde_yaml_ng::from_str(&yaml_text).context("failed to parse theme YAML")?;
 
     // --- Step 2: locate and load settings.json ---
     let settings_path =
@@ -404,8 +411,16 @@ pub fn run(args: &CustomizeTerminalArgs) -> Result<()> {
 
     let settings_text = std::fs::read_to_string(&settings_path)
         .with_context(|| format!("could not read settings.json: {}", settings_path.display()))?;
+    // Windows Terminal settings.json is JSONC (JSON with comments). Strip comments
+    // before parsing so serde_json doesn't reject them. Note: the write path uses
+    // to_string_pretty which strips comments on round-trip; the .bak backup preserves
+    // the original.
+    let mut stripped = String::new();
+    StripComments::new(settings_text.as_bytes())
+        .read_to_string(&mut stripped)
+        .context("failed to strip comments from settings.json")?;
     let mut settings: Value =
-        serde_json::from_str(&settings_text).context("failed to parse settings.json as JSON")?;
+        serde_json::from_str(&stripped).context("failed to parse settings.json as JSON")?;
 
     // --- Step 3: build the new color scheme ---
     let new_scheme = build_wt_scheme(&theme.name, &theme.palette);
@@ -512,7 +527,7 @@ appearance:
     #[test]
     fn yaml_roundtrip_parses_all_fields() {
         let theme: Theme =
-            serde_yaml::from_str(SAMPLE_THEME_YAML).expect("parse sample theme YAML");
+            serde_yaml_ng::from_str(SAMPLE_THEME_YAML).expect("parse sample theme YAML");
 
         assert_eq!(theme.name, "TestTheme");
         assert_eq!(theme.palette.black, "#000000");
@@ -558,7 +573,7 @@ palette:
   bright_cyan: "#3ff"
   bright_white: "#eee"
 "##;
-        let theme: Theme = serde_yaml::from_str(minimal).expect("parse minimal YAML");
+        let theme: Theme = serde_yaml_ng::from_str(minimal).expect("parse minimal YAML");
         assert_eq!(theme.name, "Minimal");
         assert!(theme.appearance.font_face.is_none());
         assert!(theme.palette.cursor.is_none());
@@ -568,7 +583,7 @@ palette:
 
     #[test]
     fn build_wt_scheme_maps_magenta_to_purple() {
-        let theme: Theme = serde_yaml::from_str(SAMPLE_THEME_YAML).expect("parse theme");
+        let theme: Theme = serde_yaml_ng::from_str(SAMPLE_THEME_YAML).expect("parse theme");
         let scheme = build_wt_scheme(&theme.name, &theme.palette);
 
         // WT uses "purple" for ANSI magenta (color5)
@@ -588,7 +603,7 @@ palette:
 
     #[test]
     fn build_wt_scheme_includes_specials_when_set() {
-        let theme: Theme = serde_yaml::from_str(SAMPLE_THEME_YAML).expect("parse theme");
+        let theme: Theme = serde_yaml_ng::from_str(SAMPLE_THEME_YAML).expect("parse theme");
         let scheme = build_wt_scheme(&theme.name, &theme.palette);
 
         assert_eq!(scheme["cursorColor"].as_str(), Some("#ffffff"));
@@ -599,7 +614,7 @@ palette:
 
     #[test]
     fn build_wt_scheme_omits_specials_when_none() {
-        let theme: Theme = serde_yaml::from_str(
+        let theme: Theme = serde_yaml_ng::from_str(
             r##"
 name: NoSpecials
 palette:
@@ -778,6 +793,11 @@ palette:
             list[0]["font"]["face"].as_str(),
             Some("Cascadia Code"),
             "existing font.face preserved"
+        );
+        assert_eq!(
+            list[0]["font"]["size"].as_f64(),
+            Some(14.0),
+            "font.size must be written to PowerShell profile"
         );
         // Ubuntu profile untouched
         assert!(

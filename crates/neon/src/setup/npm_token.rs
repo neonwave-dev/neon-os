@@ -90,7 +90,6 @@ pub fn run(args: &NpmTokenArgs) -> Result<()> {
     }
 
     let path = npmrc_path().ok_or_else(|| anyhow::anyhow!("Could not resolve home directory"))?;
-    let new_line = build_npmrc_line(&args.registry, &args.token);
 
     if args.dry_run {
         dry_run_print!(
@@ -98,7 +97,6 @@ pub fn run(args: &NpmTokenArgs) -> Result<()> {
             path.display(),
             build_npmrc_line(&args.registry, "****")
         );
-        dry_run_print!("full line would be: {new_line}");
         return Ok(());
     }
 

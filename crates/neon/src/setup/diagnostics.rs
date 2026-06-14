@@ -88,10 +88,11 @@ fn npm_token_status() -> String {
 
 /// Redact a token: show last 4 chars, mask the rest with `****`.
 fn redact_token(token: &str) -> String {
-    if token.len() <= 4 {
+    let chars: Vec<char> = token.chars().collect();
+    if chars.len() <= 4 {
         return "****".to_string();
     }
-    let visible = &token[token.len() - 4..];
+    let visible: String = chars[chars.len() - 4..].iter().collect();
     format!("****{visible}")
 }
 

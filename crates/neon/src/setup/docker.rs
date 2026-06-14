@@ -142,7 +142,9 @@ pub fn run_show(_args: &DockerShowArgs) -> Result<()> {
         return Ok(());
     }
 
-    for registry in config.auths.keys() {
+    let mut registries: Vec<&String> = config.auths.keys().collect();
+    registries.sort();
+    for registry in registries {
         println!("  \u{2713} {registry}");
     }
 

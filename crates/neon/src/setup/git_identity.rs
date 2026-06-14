@@ -34,7 +34,7 @@ pub struct GitIdentityArgs {
     pub scope: Option<IdentityScope>,
 
     /// List stored identities and exit
-    #[arg(long, conflicts_with_all = ["name", "email", "scope"])]
+    #[arg(long, conflicts_with_all = ["name", "email", "scope", "dry_run"])]
     pub list: bool,
 
     /// Print planned changes without writing anything

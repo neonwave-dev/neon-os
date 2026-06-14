@@ -1,4 +1,4 @@
-/// `neon setup install-packages` — idempotent shell-experience package installer.
+﻿/// `neon setup install-packages` — idempotent shell-experience package installer.
 ///
 /// Mirrors the structure of `crate::install` (InstallSpec/build_plan/execute_plan)
 /// but covers the full set of shell-experience tools across Windows, Linux, and macOS.
@@ -303,7 +303,7 @@ fn linux_spec(pkg: Package) -> Option<InstallSpec> {
         Package::Zsh => Some(spec("sudo", &["apt-get", "install", "-y", "zsh"])),
         Package::OhMyPosh => Some(spec(
             "bash",
-            &["-c", "curl -s https://ohmyposh.dev/install.sh | bash -s"],
+            &["-c", "curl -fsSL https://ohmyposh.dev/install.sh | bash -s --"],
         )),
         Package::OhMyZsh => Some(spec(
             "sh",
@@ -317,8 +317,9 @@ fn linux_spec(pkg: Package) -> Option<InstallSpec> {
             "bash",
             &[
                 "-c",
-                "LAZYGIT_VERSION=$(curl -s \"https://api.github.com/repos/jesseduffield/lazygit/releases/latest\" | grep -Po '\"tag_name\": \"v\\K[^\"]*') && \
-                 curl -Lo /tmp/lazygit.tar.gz \"https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz\" && \
+                "set -euo pipefail; \
+                 LAZYGIT_VERSION=$(curl -fsSL \"https://api.github.com/repos/jesseduffield/lazygit/releases/latest\" | grep -Po '\"tag_name\": \"v\\K[^\"]*') && \
+                 curl -fLo /tmp/lazygit.tar.gz \"https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz\" && \
                  tar xf /tmp/lazygit.tar.gz -C /tmp lazygit && \
                  sudo install /tmp/lazygit /usr/local/bin",
             ],
@@ -426,23 +427,31 @@ pub(crate) fn build_plan(
                     action: PkgAction::Skipped,
                 };
             }
-            if check_installed(pkg, platform) {
-                return PkgPlan {
-                    pkg,
-                    action: PkgAction::AlreadyInstalled,
-                };
-            }
             if platform == Platform::Unknown {
                 return PkgPlan {
                     pkg,
                     action: PkgAction::PlatformUnsupported,
                 };
             }
-            let action = match install_spec(pkg, platform) {
-                Some(s) => PkgAction::WillInstall(s),
-                None => PkgAction::NotApplicable,
+            // Determine applicability before probing install state so that
+            // platform-excluded packages (e.g. zsh on Windows) are never
+            // misclassified as AlreadyInstalled.
+            let Some(spec) = install_spec(pkg, platform) else {
+                return PkgPlan {
+                    pkg,
+                    action: PkgAction::NotApplicable,
+                };
             };
-            PkgPlan { pkg, action }
+            if check_installed(pkg, platform) {
+                return PkgPlan {
+                    pkg,
+                    action: PkgAction::AlreadyInstalled,
+                };
+            }
+            PkgPlan {
+                pkg,
+                action: PkgAction::WillInstall(spec),
+            }
         })
         .collect();
 
@@ -624,7 +633,12 @@ pub fn run(args: &InstallPackagesArgs) -> Result<()> {
     let platform = current_platform();
 
     // Normalise skip list to lowercase for case-insensitive matching.
-    let skip: Vec<String> = args.skip.iter().map(|s| s.to_lowercase()).collect();
+    let skip: Vec<String> = args
+        .skip
+        .iter()
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
 
     // Build the plan.
     let plan = build_plan(&skip, platform, is_installed);
@@ -707,6 +721,22 @@ mod tests {
         assert!(
             output.contains("not applicable"),
             "zsh/oh-my-zsh should be not applicable on Windows; got:\n{output}"
+        );
+    }
+
+    #[test]
+    fn windows_zsh_not_applicable_even_when_present_on_path() {
+        // zsh binary might exist in WSL PATH but must still be NotApplicable on Windows.
+        let plan = build_plan(&[], Platform::Windows, everything_installed);
+        let zsh_item = plan
+            .items
+            .iter()
+            .find(|i| i.pkg == Package::Zsh)
+            .expect("Zsh in plan");
+        assert_eq!(
+            zsh_item.action,
+            PkgAction::NotApplicable,
+            "zsh should be NotApplicable on Windows even if check_installed returns true"
         );
     }
 

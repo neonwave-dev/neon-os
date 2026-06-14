@@ -31,8 +31,9 @@ converge to it).
 9. **Set environment variables + secrets** — multi-step: NPM_TOKEN, `.ssh` for git,
    docker login, … (never hardcoded; written to standard per-tool locations).
 10. **Set up the shell profile** — wire `$PROFILE` / `.zshrc` to the NeonOS-managed profile.
-11. **Initialize Claude / agent environment** — claude-config machine bootstrap: junctions for
-    `~/.claude/skills` + `~/.claude/agents`, run sync-skills, provision global
+11. **Initialize Claude / agent environment** — claude-config machine bootstrap: links
+    (symlinks on Unix, junctions on Windows) for `~/.claude/skills` + `~/.claude/agents`,
+    run sync-skills, provision global
     `~/.claude/CLAUDE.md` + `local-config.md`. Per-machine; distinct from per-repo agent
     setup (NEO-3). (NEO-47)
 12. **Done** — final diagnostics: detect anything missing and report.
@@ -47,7 +48,7 @@ Direct ports of functions that already exist on both sides:
 | Step | Source (PowerShell → zsh) |
 |---|---|
 | `detect` (platform probe: OS family, arch, distro) | NEO-46 — new |
-| `claude` (claude-config bootstrap: junctions, sync-skills, global config) | NEO-47 — new |
+| `claude` (claude-config bootstrap: links (symlinks/junctions), sync-skills, global config) | NEO-47 — new |
 | `set-git-identity` (local, remote-rewrite to SSH alias) | `Set-LocalGitIdentity` → `set-git-identity` |
 | `set-global-git-identity` | `Set-GlobalGitIdentity` → `set-global-git-identity` |
 | `docker-login` / `docker-logout` / `show-docker-identity` | `Profile.Docker.psm1` → `docker.zsh` |

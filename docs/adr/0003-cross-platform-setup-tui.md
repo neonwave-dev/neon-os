@@ -52,6 +52,7 @@ See `docs/architecture/setup-tui.md` for the pipeline, the command map, and the 
 - Phase 1 shipped only this design. The build is now active (epic NEO-27) and is the
   priority workstream. Two new pipeline steps were added: **detect machine / OS** (NEO-46 —
   platform probe) and **initialize Claude/agent environment** (NEO-47 — claude-config machine
-  bootstrap: junctions for `~/.claude/skills` + `~/.claude/agents`, run sync-skills, provision
+  bootstrap: links (symlinks on Unix, junctions on Windows) for `~/.claude/skills` +
+  `~/.claude/agents`, run sync-skills, provision
   global `~/.claude/CLAUDE.md` + `local-config.md`; per-machine, distinct from the per-repo
   agent setup in NEO-3).

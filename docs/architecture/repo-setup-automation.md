@@ -213,7 +213,7 @@ Mapping onto `RepoProfile`:
 - `visibility` — existing field; no change to its semantics.
 - `license` — new field; add to `RepoProfile` alongside the existing scaffold inputs.
 - `languages` — existing field extended with the `bare` variant. `bare` skips `Cargo.toml` /
-  `pnpm-workspace.toml` scaffold and emits only community health files, `docs/`, and
+  `pnpm-workspace.yaml` scaffold and emits only community health files, `docs/`, and
   `.github/`.
 
 Implementation tracked in NEO-48 (matrix) and NEO-49 (interactive wizard).

@@ -695,18 +695,28 @@ mod tests {
     #[test]
     fn capability_report_has_os() {
         let os = detect_os();
-        assert_ne!(os.kind, OsKind::Unknown, "OS kind should be detected, not Unknown");
+        assert_ne!(
+            os.kind,
+            OsKind::Unknown,
+            "OS kind should be detected, not Unknown"
+        );
     }
 
     #[test]
     fn arch_is_non_empty() {
-        assert!(!std::env::consts::ARCH.is_empty(), "arch should be non-empty");
+        assert!(
+            !std::env::consts::ARCH.is_empty(),
+            "arch should be non-empty"
+        );
     }
 
     #[test]
     fn print_report_contains_headers() {
         let report = CapabilityReport {
-            os: OsInfo { kind: OsKind::Linux, is_wsl: false },
+            os: OsInfo {
+                kind: OsKind::Linux,
+                is_wsl: false,
+            },
             arch: "x86_64".to_string(),
             package_managers: vec![],
             shells: vec![],
@@ -714,7 +724,10 @@ mod tests {
         };
         let output = format_report(&report);
         assert!(output.contains("OS:"), "output should contain 'OS:'");
-        assert!(output.contains("Shells:"), "output should contain 'Shells:'");
+        assert!(
+            output.contains("Shells:"),
+            "output should contain 'Shells:'"
+        );
         assert!(output.contains("Tools:"), "output should contain 'Tools:'");
     }
 

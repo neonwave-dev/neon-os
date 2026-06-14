@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 
 use neon_cli::doctor;
 use neon_cli::repo::{self, InitArgs};
-use neon_cli::setup;
+use neon_cli::setup::{self, SetupClaudeArgs};
 
 /// NeonOS CLI — developer environment diagnostics and tooling
 #[derive(Parser)]
@@ -43,6 +43,8 @@ enum RepoCommands {
 enum SetupCommands {
     /// Probe and report machine capabilities (OS, shells, tools)
     Detect,
+    /// Bootstrap the Claude/agent environment (junctions, skills, global config)
+    Claude(SetupClaudeArgs),
 }
 
 fn main() -> Result<()> {
@@ -55,6 +57,7 @@ fn main() -> Result<()> {
         },
         Commands::Setup { command } => match command {
             SetupCommands::Detect => setup::run_detect()?,
+            SetupCommands::Claude(args) => setup::run_claude(args)?,
         },
     }
 

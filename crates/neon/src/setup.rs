@@ -437,9 +437,9 @@ fn ensure_junction(label: &str, link: &Path, source: &Path, dry_run: bool) -> Re
         if is_linked_to(link, source) {
             print_step(
                 dry_run,
-                "v",
+                "✓",
                 label,
-                &format!("{link_disp} -> {source_disp}  (already exists)"),
+                &format!("{link_disp} → {source_disp}  (already linked)"),
             );
             return Ok(());
         }
@@ -458,9 +458,9 @@ fn ensure_junction(label: &str, link: &Path, source: &Path, dry_run: bool) -> Re
     if dry_run {
         print_step(
             dry_run,
-            "v",
+            "✓",
             label,
-            &format!("{link_disp} -> {source_disp}  (would create)"),
+            &format!("{link_disp} → {source_disp}  (would create)"),
         );
         return Ok(());
     }
@@ -468,9 +468,9 @@ fn ensure_junction(label: &str, link: &Path, source: &Path, dry_run: bool) -> Re
     create_link(link, source)?;
     print_step(
         dry_run,
-        "v",
+        "✓",
         label,
-        &format!("{link_disp} -> {source_disp}  (created)"),
+        &format!("{link_disp} → {source_disp}  (created)"),
     );
     Ok(())
 }
@@ -488,12 +488,12 @@ fn ensure_file_copy(label: &str, src: &Path, dest: &Path, dry_run: bool) -> Resu
         return Ok(());
     }
     if dry_run {
-        print_step(dry_run, "v", label, "would copy");
+        print_step(dry_run, "✓", label, "would copy");
         return Ok(());
     }
     std::fs::copy(src, dest)
         .with_context(|| format!("copying {} to {}", src.display(), dest.display()))?;
-    print_step(dry_run, "v", label, "copied");
+    print_step(dry_run, "✓", label, "copied");
     Ok(())
 }
 
@@ -511,12 +511,12 @@ fn ensure_local_config(dest: &Path, dry_run: bool) -> Result<()> {
         return Ok(());
     }
     if dry_run {
-        print_step(dry_run, "v", label, "would create (fill in your values)");
+        print_step(dry_run, "✓", label, "would create (fill in your values)");
         return Ok(());
     }
     std::fs::write(dest, LOCAL_CONFIG_TEMPLATE)
         .with_context(|| format!("writing local-config.md to {}", dest.display()))?;
-    print_step(dry_run, "v", label, "created (fill in your values)");
+    print_step(dry_run, "✓", label, "created (fill in your values)");
     Ok(())
 }
 
@@ -535,7 +535,7 @@ fn run_skill_sync(claude_config: &Path, dry_run: bool) -> Result<()> {
         return Ok(());
     }
     if dry_run {
-        print_step(dry_run, "v", "skill sync", "would run sync-skills.ps1");
+        print_step(dry_run, "✓", "skill sync", "would run sync-skills.ps1");
         return Ok(());
     }
     let status = std::process::Command::new("pwsh")
@@ -543,7 +543,7 @@ fn run_skill_sync(claude_config: &Path, dry_run: bool) -> Result<()> {
         .status()
         .context("failed to launch pwsh for sync-skills.ps1")?;
     if status.success() {
-        print_step(dry_run, "v", "skill sync", "ran sync-skills.ps1");
+        print_step(dry_run, "✓", "skill sync", "ran sync-skills.ps1");
     } else {
         anyhow::bail!(
             "sync-skills.ps1 exited with code {}",
@@ -777,5 +777,54 @@ mod tests {
             "expected find_claude_config to find the candidate"
         );
         assert_eq!(found.unwrap(), candidate);
+    }
+
+    /// On Windows, a directory junction must be recognized by `is_linked_to`
+    /// so that a second `neon setup claude` invocation is idempotent and does
+    /// not attempt to recreate the junction.
+    ///
+    /// This is the canonical guard for the idempotency requirement: if
+    /// `FileType::is_symlink()` returns false for junctions (it returns true
+    /// per empirical check on Windows 11), the command would warn "exists but
+    /// is not a junction" on every re-run instead of recognizing the existing
+    /// link.
+    #[cfg(windows)]
+    #[test]
+    fn is_linked_to_returns_true_for_existing_junction() {
+        let tmp = std::env::temp_dir().join(format!(
+            "neon_test_junction_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.subsec_nanos())
+                .unwrap_or(0)
+        ));
+        let target = tmp.join("target");
+        let link = tmp.join("link");
+
+        std::fs::create_dir_all(&target).expect("create target dir");
+        let out = std::process::Command::new("cmd")
+            .args([
+                "/c",
+                "mklink",
+                "/J",
+                &link.to_string_lossy(),
+                &target.to_string_lossy(),
+            ])
+            .output()
+            .expect("cmd mklink /J");
+
+        // Clean up regardless of assertion result.
+        let linked = is_linked_to(&link, &target);
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        assert!(
+            out.status.success(),
+            "mklink /J failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(
+            linked,
+            "is_linked_to must return true for a correct Windows junction (idempotency)"
+        );
     }
 }

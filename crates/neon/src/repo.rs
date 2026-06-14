@@ -1,4 +1,4 @@
-﻿use anyhow::Result;
+use anyhow::Result;
 use clap::{Args, ValueEnum};
 use std::path::PathBuf;
 

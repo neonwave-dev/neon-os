@@ -2,18 +2,18 @@ use anyhow::Result;
 use clap::{Args, ValueEnum};
 use std::path::PathBuf;
 
-// --- Profile inputs (section 7 of docs/architecture/repo-setup-automation.md) ---
+// --- Profile inputs (§7 of docs/architecture/repo-setup-automation.md) ---
 
 /// Repository topology: single-maintainer vs multi-person team.
 ///
 /// Affects GitHub branch-protection settings applied by `neon repo harden`
-/// (solo -> admin bypass; team -> strict approvals).
+/// (solo → admin bypass; team → strict approvals).
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Topology {
-    /// Single-maintainer repo -- admin bypass on branch protection.
+    /// Single-maintainer repo — admin bypass on branch protection.
     #[default]
     Solo,
-    /// Multi-person team -- strict approval requirements.
+    /// Multi-person team — strict approval requirements.
     Team,
 }
 
@@ -22,10 +22,10 @@ pub enum Topology {
 /// Affects which security features are available at harden time.
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Visibility {
-    /// Public repo -- free secret scanning and push protection.
+    /// Public repo — free secret scanning and push protection.
     #[default]
     Public,
-    /// Private repo -- paid security features path.
+    /// Private repo — paid security features path.
     Private,
 }
 
@@ -34,7 +34,7 @@ pub enum Visibility {
 /// Gates the release workflow and provenance configuration.
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Publish {
-    /// No npm publishing -- skip release workflow.
+    /// No npm publishing — skip release workflow.
     #[default]
     None,
     /// Wire up Changesets but defer npm publish; a human triggers the release.
@@ -48,10 +48,10 @@ pub enum Publish {
 /// Controls which merge methods GitHub enables on the repo.
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Merge {
-    /// Squash-only -- standard for libraries / OSS packages.
+    /// Squash-only — standard for libraries / OSS packages.
     #[default]
     Library,
-    /// Squash + rebase -- suits application repos that want linear history options.
+    /// Squash + rebase — suits application repos that want linear history options.
     App,
 }
 
@@ -60,9 +60,9 @@ pub enum Merge {
 /// Determines which CI jobs, Cargo workspace, and Turborepo config are generated.
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Languages {
-    /// TypeScript/JS only -- no Rust toolchain, no Cargo workspace.
+    /// TypeScript/JS only — no Rust toolchain, no Cargo workspace.
     Ts,
-    /// Rust only -- no pnpm/Turborepo, no TypeScript CI.
+    /// Rust only — no pnpm/Turborepo, no TypeScript CI.
     Rust,
     /// Both TypeScript and Rust (the canonical NeonOS profile).
     #[default]
@@ -178,7 +178,7 @@ impl PlanItem {
 }
 
 /// Derive the list of files / artifacts that `neon repo init` *would* generate for
-/// the given profile.  Pure function -- no filesystem access, no I/O.
+/// the given profile.  Pure function — no filesystem access, no I/O.
 pub fn plan(profile: &RepoProfile) -> Vec<PlanItem> {
     let license_label = match profile.license {
         License::Mit => "LICENSE (MIT)",
@@ -251,7 +251,7 @@ pub fn plan(profile: &RepoProfile) -> Vec<PlanItem> {
         Publish::Changesets => {
             items.push(PlanItem::new(".changeset/config.json"));
             items.push(PlanItem::new(
-                ".github/workflows/release.yml (changesets \u{2014} human-triggered)",
+                ".github/workflows/release.yml (changesets — human-triggered)",
             ));
         }
         Publish::NpmNow => {
@@ -266,7 +266,7 @@ pub fn plan(profile: &RepoProfile) -> Vec<PlanItem> {
 }
 
 /// Format the scaffold plan as a human-readable string, including the profile
-/// summary.  Pure function -- suitable for unit-testing without capturing stdout.
+/// summary.  Pure function — suitable for unit-testing without capturing stdout.
 pub fn format_plan(profile: &RepoProfile, path: Option<&PathBuf>) -> String {
     use std::fmt::Write;
     let mut s = String::new();
@@ -275,7 +275,7 @@ pub fn format_plan(profile: &RepoProfile, path: Option<&PathBuf>) -> String {
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| ".".to_string());
 
-    let _ = writeln!(s, "=== neon repo init \u{2014} DRY RUN ===");
+    let _ = writeln!(s, "=== neon repo init — DRY RUN ===");
     let _ = writeln!(s, "  target:     {target}");
     let _ = writeln!(s);
     let _ = writeln!(s, "=== Profile ===");
@@ -365,11 +365,26 @@ mod tests {
             ..RepoProfile::default()
         };
         let labels = plan_labels(&profile);
-        assert!(labels.iter().any(|l| l.contains("Cargo.toml")));
-        assert!(labels.iter().any(|l| l.contains("rust.yml")));
-        assert!(labels.iter().any(|l| l.contains("package.json")));
-        assert!(labels.iter().any(|l| l.contains("turbo.json")));
-        assert!(labels.iter().any(|l| l.contains("typescript.yml")));
+        assert!(
+            labels.iter().any(|l| l.contains("Cargo.toml")),
+            "Both profile should include Cargo.toml; got: {labels:?}"
+        );
+        assert!(
+            labels.iter().any(|l| l.contains("rust.yml")),
+            "Both profile should include rust.yml; got: {labels:?}"
+        );
+        assert!(
+            labels.iter().any(|l| l.contains("package.json")),
+            "Both profile should include package.json; got: {labels:?}"
+        );
+        assert!(
+            labels.iter().any(|l| l.contains("turbo.json")),
+            "Both profile should include turbo.json; got: {labels:?}"
+        );
+        assert!(
+            labels.iter().any(|l| l.contains("typescript.yml")),
+            "Both profile should include typescript.yml; got: {labels:?}"
+        );
     }
 
     #[test]
@@ -379,11 +394,26 @@ mod tests {
             ..RepoProfile::default()
         };
         let labels = plan_labels(&profile);
-        assert!(!labels.iter().any(|l| l.contains("Cargo.toml")));
-        assert!(!labels.iter().any(|l| l.contains("rust.yml")));
-        assert!(!labels.iter().any(|l| l.contains("rust-toolchain")));
-        assert!(labels.iter().any(|l| l.contains("package.json")));
-        assert!(labels.iter().any(|l| l.contains("typescript.yml")));
+        assert!(
+            !labels.iter().any(|l| l.contains("Cargo.toml")),
+            "TS-only profile must omit Cargo.toml; got: {labels:?}"
+        );
+        assert!(
+            !labels.iter().any(|l| l.contains("rust.yml")),
+            "TS-only profile must omit rust.yml; got: {labels:?}"
+        );
+        assert!(
+            !labels.iter().any(|l| l.contains("rust-toolchain")),
+            "TS-only profile must omit rust-toolchain.toml; got: {labels:?}"
+        );
+        assert!(
+            labels.iter().any(|l| l.contains("package.json")),
+            "TS-only profile must include package.json; got: {labels:?}"
+        );
+        assert!(
+            labels.iter().any(|l| l.contains("typescript.yml")),
+            "TS-only profile must include typescript.yml; got: {labels:?}"
+        );
     }
 
     #[test]
@@ -393,12 +423,30 @@ mod tests {
             ..RepoProfile::default()
         };
         let labels = plan_labels(&profile);
-        assert!(!labels.iter().any(|l| l.contains("package.json")));
-        assert!(!labels.iter().any(|l| l.contains("turbo.json")));
-        assert!(!labels.iter().any(|l| l.contains("typescript.yml")));
-        assert!(!labels.iter().any(|l| l.contains("pnpm")));
-        assert!(labels.iter().any(|l| l.contains("Cargo.toml")));
-        assert!(labels.iter().any(|l| l.contains("rust.yml")));
+        assert!(
+            !labels.iter().any(|l| l.contains("package.json")),
+            "Rust-only profile must omit package.json; got: {labels:?}"
+        );
+        assert!(
+            !labels.iter().any(|l| l.contains("turbo.json")),
+            "Rust-only profile must omit turbo.json; got: {labels:?}"
+        );
+        assert!(
+            !labels.iter().any(|l| l.contains("typescript.yml")),
+            "Rust-only profile must omit typescript.yml; got: {labels:?}"
+        );
+        assert!(
+            !labels.iter().any(|l| l.contains("pnpm")),
+            "Rust-only profile must omit pnpm entries; got: {labels:?}"
+        );
+        assert!(
+            labels.iter().any(|l| l.contains("Cargo.toml")),
+            "Rust-only profile must include Cargo.toml; got: {labels:?}"
+        );
+        assert!(
+            labels.iter().any(|l| l.contains("rust.yml")),
+            "Rust-only profile must include rust.yml; got: {labels:?}"
+        );
     }
 
     #[test]
@@ -408,8 +456,14 @@ mod tests {
             ..RepoProfile::default()
         };
         let labels = plan_labels(&profile);
-        assert!(!labels.iter().any(|l| l.contains("release.yml")));
-        assert!(!labels.iter().any(|l| l.contains(".changeset")));
+        assert!(
+            !labels.iter().any(|l| l.contains("release.yml")),
+            "Publish=None must omit release.yml; got: {labels:?}"
+        );
+        assert!(
+            !labels.iter().any(|l| l.contains(".changeset")),
+            "Publish=None must omit .changeset; got: {labels:?}"
+        );
     }
 
     #[test]
@@ -419,8 +473,14 @@ mod tests {
             ..RepoProfile::default()
         };
         let labels = plan_labels(&profile);
-        assert!(labels.iter().any(|l| l.contains(".changeset/config.json")));
-        assert!(labels.iter().any(|l| l.contains("release.yml")));
+        assert!(
+            labels.iter().any(|l| l.contains(".changeset/config.json")),
+            "Changesets publish must include .changeset/config.json; got: {labels:?}"
+        );
+        assert!(
+            labels.iter().any(|l| l.contains("release.yml")),
+            "Changesets publish must include release.yml; got: {labels:?}"
+        );
     }
 
     #[test]

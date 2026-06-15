@@ -6,8 +6,8 @@ use neon_cli::install::{self, InstallAppsArgs};
 use neon_cli::repo::{self, InitArgs};
 use neon_cli::setup::{
     self, CustomizeTerminalArgs, DiagnosticsArgs, DockerLoginArgs, DockerLogoutArgs,
-    DockerShowArgs, GitIdentityArgs, InstallLanguagesArgs, NpmTokenArgs, PickShellArgs,
-    PickTerminalArgs, SetupClaudeArgs,
+    DockerShowArgs, GitIdentityArgs, InstallLanguagesArgs, InstallPackagesArgs, NpmTokenArgs,
+    PickShellArgs, PickTerminalArgs, SetupClaudeArgs,
 };
 
 /// NeonOS CLI — developer environment diagnostics and tooling
@@ -70,6 +70,8 @@ enum SetupCommands {
     PickShell(PickShellArgs),
     /// Pick and persist the preferred terminal
     PickTerminal(PickTerminalArgs),
+    /// Install shell-experience packages (fzf, bat, eza, lazygit, etc.) — idempotent
+    InstallPackages(InstallPackagesArgs),
     /// Apply a YAML color theme to Windows Terminal
     CustomizeTerminal(CustomizeTerminalArgs),
 }
@@ -95,6 +97,7 @@ fn main() -> Result<()> {
             SetupCommands::InstallLanguages(args) => setup::run_install_languages(&args)?,
             SetupCommands::PickShell(args) => setup::run_pick_shell(args)?,
             SetupCommands::PickTerminal(args) => setup::run_pick_terminal(args)?,
+            SetupCommands::InstallPackages(args) => setup::run_install_packages(&args)?,
             SetupCommands::CustomizeTerminal(args) => setup::run_customize_terminal(&args)?,
         },
     }

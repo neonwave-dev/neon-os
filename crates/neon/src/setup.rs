@@ -9,6 +9,7 @@ pub mod docker;
 pub mod git_identity;
 pub mod languages;
 pub mod npm_token;
+pub mod terminal_theme;
 
 use anyhow::{Context, Result};
 use clap::{Args, ValueEnum};
@@ -26,6 +27,7 @@ pub use docker::{
 pub use git_identity::{run as run_git_identity, GitIdentityArgs};
 pub use languages::{run as run_install_languages, InstallLanguagesArgs};
 pub use npm_token::{run as run_npm_token, NpmTokenArgs};
+pub use terminal_theme::{run_customize_terminal, CustomizeTerminalArgs};
 
 // ============================================================
 // SECTION 1 — detect machine capabilities (neon setup detect)

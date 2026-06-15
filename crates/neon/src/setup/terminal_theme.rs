@@ -11,6 +11,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::Read as _;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Bundled Synthwave84 default theme — used when `--theme-file` is omitted.
+const DEFAULT_THEME: &str = include_str!("../../themes/synthwave84.yml");
 
 // ============================================================
 // YAML theme schema
@@ -64,6 +68,10 @@ pub struct Appearance {
     pub use_acrylic: Option<bool>,
     pub background_image: Option<String>,
     pub cursor_shape: Option<String>, // "bar", "vintage", "underscore", "filledBox", "emptyBox"
+    /// Pool of background images — one is chosen at random each run.
+    /// Supports `~` for the home directory.  Ignored when `background_image` is set.
+    #[serde(default)]
+    pub background_image_pool: Vec<String>,
 }
 
 // ============================================================
@@ -73,9 +81,10 @@ pub struct Appearance {
 /// Arguments for `neon setup customize-terminal`.
 #[derive(Args, Debug)]
 pub struct CustomizeTerminalArgs {
-    /// Path to the YAML theme file
+    /// Path to the YAML theme file.
+    /// Omit to use the bundled Synthwave84 default.
     #[arg(long)]
-    pub theme_file: PathBuf,
+    pub theme_file: Option<PathBuf>,
 
     /// Windows Terminal profile name to apply appearance to (defaults to
     /// "defaults", which writes to `profiles.defaults`; any other name
@@ -205,11 +214,40 @@ pub fn upsert_scheme(settings: &mut Value, scheme: Value) -> bool {
     false
 }
 
+/// Expand a leading `~/` to the user's home directory.
+fn expand_tilde(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest).to_string_lossy().into_owned();
+        }
+    }
+    path.to_string()
+}
+
+/// Pick one path from `pool` using the sub-millisecond bits of the current
+/// system time as a cheap random index.  Returns `None` when the pool is empty.
+fn pick_from_pool(pool: &[String]) -> Option<String> {
+    if pool.is_empty() {
+        return None;
+    }
+    let idx = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_millis() as usize
+        % pool.len();
+    Some(expand_tilde(&pool[idx]))
+}
+
 /// Apply `Appearance` fields to a profile object.
 ///
 /// Only fields that are `Some` are written; `None` fields are not touched so
 /// that existing settings are preserved.  Font face and size are nested inside
 /// a `"font"` object, matching Windows Terminal's actual schema.
+///
+/// Background image resolution order:
+///   1. `appearance.background_image` (explicit path)
+///   2. random pick from `appearance.background_image_pool`
+///   3. nothing written
 pub fn apply_appearance(profile: &mut Value, appearance: &Appearance) {
     // Normalize the "font" field to an object before writing face/size.
     // A pre-existing non-object value (e.g. a string from a legacy config)
@@ -234,8 +272,14 @@ pub fn apply_appearance(profile: &mut Value, appearance: &Appearance) {
     if let Some(acrylic) = appearance.use_acrylic {
         profile["useAcrylic"] = Value::Bool(acrylic);
     }
-    if let Some(ref img) = appearance.background_image {
-        profile["backgroundImage"] = Value::String(img.clone());
+    // Background image: explicit wins; otherwise pick from pool.
+    let effective_bg = appearance
+        .background_image
+        .as_deref()
+        .map(expand_tilde)
+        .or_else(|| pick_from_pool(&appearance.background_image_pool));
+    if let Some(img) = effective_bg {
+        profile["backgroundImage"] = Value::String(img);
     }
     if let Some(ref shape) = appearance.cursor_shape {
         profile["cursorShape"] = Value::String(shape.clone());
@@ -334,6 +378,7 @@ fn print_dry_run_summary(
         || app.opacity.is_some()
         || app.use_acrylic.is_some()
         || app.background_image.is_some()
+        || !app.background_image_pool.is_empty()
         || app.cursor_shape.is_some();
 
     if has_appearance {
@@ -355,6 +400,11 @@ fn print_dry_run_summary(
         }
         if let Some(ref img) = app.background_image {
             println!("[dry-run]   backgroundImage: {img}");
+        } else if let Some(picked) = pick_from_pool(&app.background_image_pool) {
+            println!(
+                "[dry-run]   backgroundImage: {picked}  (pool pick from {} images)",
+                app.background_image_pool.len()
+            );
         }
         if let Some(ref shape) = app.cursor_shape {
             println!("[dry-run]   cursorShape:     {shape}");
@@ -394,8 +444,11 @@ pub fn run(args: &CustomizeTerminalArgs) -> Result<()> {
     }
 
     // --- Step 1: parse theme YAML ---
-    let yaml_text = std::fs::read_to_string(&args.theme_file)
-        .with_context(|| format!("could not read theme file: {}", args.theme_file.display()))?;
+    let yaml_text = match &args.theme_file {
+        Some(path) => std::fs::read_to_string(path)
+            .with_context(|| format!("could not read theme file: {}", path.display()))?,
+        None => DEFAULT_THEME.to_string(),
+    };
     let theme: Theme = serde_yaml_ng::from_str(&yaml_text).context("failed to parse theme YAML")?;
 
     // --- Step 2: locate and load settings.json ---
@@ -704,10 +757,11 @@ palette:
         });
         let appearance = Appearance {
             font_face: Some("Fira Code".into()),
-            font_size: None, // not written
+            font_size: None,
             opacity: Some(80),
-            use_acrylic: None, // not written
+            use_acrylic: None,
             background_image: None,
+            background_image_pool: vec![],
             cursor_shape: Some("bar".into()),
         };
         apply_appearance(&mut profile, &appearance);

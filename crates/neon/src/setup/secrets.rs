@@ -207,7 +207,7 @@ fn save_ssh_identities(path: &PathBuf, file: &SshIdentityFile) -> Result<()> {
     Ok(())
 }
 
-fn run_one_ssh_identity(dry_run: bool) -> Result<Option<SshIdentity>> {
+fn run_one_ssh_identity() -> Result<Option<SshIdentity>> {
     let alias = inquire::Text::new("Host alias (e.g. github-personal):")
         .prompt()
         .context("alias prompt cancelled")?;
@@ -250,19 +250,6 @@ fn run_one_ssh_identity(dry_run: bool) -> Result<Option<SshIdentity>> {
         }));
     }
 
-    if dry_run {
-        dry_run_print!(
-            "append to {}:\n{}",
-            ssh_cfg_path.display(),
-            format_host_entry(&alias, &key)
-        );
-        return Ok(Some(SshIdentity {
-            alias,
-            username,
-            key,
-        }));
-    }
-
     // Write to ~/.ssh/config
     if let Some(parent) = ssh_cfg_path.parent() {
         std::fs::create_dir_all(parent)
@@ -288,6 +275,25 @@ fn run_one_ssh_identity(dry_run: bool) -> Result<Option<SshIdentity>> {
 fn run_ssh_step(dry_run: bool) -> Result<()> {
     println!("\n=== Step 2/3: SSH identity map ===");
 
+    if dry_run {
+        let ssh_cfg =
+            ssh_config_path().ok_or_else(|| anyhow::anyhow!("could not resolve home directory"))?;
+        let id_path = ssh_identities_path()
+            .ok_or_else(|| anyhow::anyhow!("could not resolve home directory"))?;
+        dry_run_print!(
+            "prompt for identity count + (alias, github username, key path) per identity"
+        );
+        dry_run_print!(
+            "append Host <alias> blocks to {} (idempotent)",
+            ssh_cfg.display()
+        );
+        dry_run_print!(
+            "write ssh-identities to {} (idempotent, keyed by alias)",
+            id_path.display()
+        );
+        return Ok(());
+    }
+
     let count_str = inquire::Text::new("How many git identities do you have?")
         .with_default("1")
         .prompt()
@@ -310,7 +316,7 @@ fn run_ssh_step(dry_run: bool) -> Result<()> {
 
     for i in 1..=count {
         println!("\n  Identity {i}/{count}:");
-        if let Some(identity) = run_one_ssh_identity(dry_run)? {
+        if let Some(identity) = run_one_ssh_identity()? {
             // Upsert into the neon identity store (keyed by alias)
             if let Some(existing) = id_file
                 .identity
@@ -324,15 +330,11 @@ fn run_ssh_step(dry_run: bool) -> Result<()> {
         }
     }
 
-    if dry_run {
-        dry_run_print!("write ssh-identities to {}", identities_path.display());
-    } else {
-        save_ssh_identities(&identities_path, &id_file)?;
-        println!(
-            "  \u{2713} SSH identities saved to {}",
-            identities_path.display()
-        );
-    }
+    save_ssh_identities(&identities_path, &id_file)?;
+    println!(
+        "  \u{2713} SSH identities saved to {}",
+        identities_path.display()
+    );
 
     Ok(())
 }
@@ -345,6 +347,12 @@ const DOCKER_HUB_REGISTRY: &str = "docker.io";
 
 fn run_docker_step(dry_run: bool) -> Result<()> {
     println!("\n=== Step 3/3: Docker login ===");
+
+    if dry_run {
+        dry_run_print!("prompt for registry (default: {DOCKER_HUB_REGISTRY}) + optional username");
+        dry_run_print!("docker login <registry> (docker itself prompts for password)");
+        return Ok(());
+    }
 
     let registry = inquire::Text::new("Docker registry (default: docker.io):")
         .with_default(DOCKER_HUB_REGISTRY)
@@ -365,7 +373,7 @@ fn run_docker_step(dry_run: bool) -> Result<()> {
     let login_args = DockerLoginArgs {
         registry,
         username,
-        dry_run,
+        dry_run: false,
     };
 
     docker_run_login(&login_args)

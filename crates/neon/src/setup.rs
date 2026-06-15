@@ -1991,4 +1991,35 @@ mod tests {
         let result = expand_tilde_path(abs).expect("expand");
         assert_eq!(result.to_string_lossy(), abs);
     }
+
+    #[test]
+    fn shell_choice_as_str_roundtrips_through_value_enum() {
+        use clap::ValueEnum;
+        for c in [
+            ShellChoice::Powershell7,
+            ShellChoice::Wsl,
+            ShellChoice::Zsh,
+            ShellChoice::Bash,
+        ] {
+            let stored = c.as_str();
+            let parsed = ShellChoice::from_str(stored, true)
+                .unwrap_or_else(|_| panic!("from_str failed for '{stored}'"));
+            assert_eq!(parsed, c, "round-trip failed for variant {c:?}");
+        }
+    }
+
+    #[test]
+    fn terminal_choice_as_str_roundtrips_through_value_enum() {
+        use clap::ValueEnum;
+        for c in [
+            TerminalChoice::WindowsTerminal,
+            TerminalChoice::Iterm2,
+            TerminalChoice::GnomeTerminal,
+        ] {
+            let stored = c.as_str();
+            let parsed = TerminalChoice::from_str(stored, true)
+                .unwrap_or_else(|_| panic!("from_str failed for '{stored}'"));
+            assert_eq!(parsed, c, "round-trip failed for variant {c:?}");
+        }
+    }
 }

@@ -224,7 +224,7 @@ fn expand_tilde(path: &str) -> String {
     path.to_string()
 }
 
-/// Pick one path from `pool` using the sub-millisecond bits of the current
+/// Pick one path from `pool` using the sub-nanosecond bits of the current
 /// system time as a cheap random index.  Returns `None` when the pool is empty.
 fn pick_from_pool(pool: &[String]) -> Option<String> {
     if pool.is_empty() {
@@ -233,7 +233,7 @@ fn pick_from_pool(pool: &[String]) -> Option<String> {
     let idx = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
-        .subsec_millis() as usize
+        .subsec_nanos() as usize
         % pool.len();
     Some(expand_tilde(&pool[idx]))
 }
@@ -399,7 +399,7 @@ fn print_dry_run_summary(
             println!("[dry-run]   useAcrylic:      {a}");
         }
         if let Some(ref img) = app.background_image {
-            println!("[dry-run]   backgroundImage: {img}");
+            println!("[dry-run]   backgroundImage: {}", expand_tilde(img));
         } else if let Some(picked) = pick_from_pool(&app.background_image_pool) {
             println!(
                 "[dry-run]   backgroundImage: {picked}  (pool pick from {} images)",

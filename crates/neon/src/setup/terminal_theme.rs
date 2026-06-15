@@ -214,10 +214,10 @@ pub fn apply_appearance(profile: &mut Value, appearance: &Appearance) {
     // Normalize the "font" field to an object before writing face/size.
     // A pre-existing non-object value (e.g. a string from a legacy config)
     // would panic on indexed assignment, so we reset it to an empty object.
-    if appearance.font_face.is_some() || appearance.font_size.is_some() {
-        if !profile.get("font").is_some_and(|v| v.is_object()) {
-            profile["font"] = Value::Object(serde_json::Map::new());
-        }
+    if (appearance.font_face.is_some() || appearance.font_size.is_some())
+        && !profile.get("font").is_some_and(|v| v.is_object())
+    {
+        profile["font"] = Value::Object(serde_json::Map::new());
     }
     if let Some(ref face) = appearance.font_face {
         profile["font"]["face"] = Value::String(face.clone());

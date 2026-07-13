@@ -7,7 +7,8 @@ use neon_cli::repo::{self, InitArgs};
 use neon_cli::setup::{
     self, CustomizeTerminalArgs, DiagnosticsArgs, DockerLoginArgs, DockerLogoutArgs,
     DockerShowArgs, GitIdentityArgs, InstallLanguagesArgs, InstallPackagesArgs, NpmTokenArgs,
-    PickShellArgs, PickTerminalArgs, SecretsArgs, SetupClaudeArgs,
+    PickShellArgs, PickTerminalArgs, SecretsArgs, SetupClaudeArgs, SetupInteractiveArgs,
+    SetupRunArgs,
 };
 
 /// NeonOS CLI — developer environment diagnostics and tooling
@@ -76,6 +77,10 @@ enum SetupCommands {
     CustomizeTerminal(CustomizeTerminalArgs),
     /// Configure machine secrets (NPM token, SSH identities, docker login)
     Secrets(SecretsArgs),
+    /// Run the full configured setup pipeline non-interactively
+    Run(SetupRunArgs),
+    /// Launch the interactive setup wizard
+    Interactive(SetupInteractiveArgs),
 }
 
 fn main() -> Result<()> {
@@ -102,6 +107,8 @@ fn main() -> Result<()> {
             SetupCommands::InstallPackages(args) => setup::run_install_packages(&args)?,
             SetupCommands::CustomizeTerminal(args) => setup::run_customize_terminal(&args)?,
             SetupCommands::Secrets(args) => setup::run_secrets(&args)?,
+            SetupCommands::Run(args) => setup::run_setup_run(args)?,
+            SetupCommands::Interactive(args) => setup::run_setup_interactive(args)?,
         },
     }
 

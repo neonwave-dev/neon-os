@@ -1122,6 +1122,30 @@ fn step_enabled(filter: &[String], step: &str) -> bool {
     filter.is_empty() || filter.iter().any(|s| s == step)
 }
 
+/// Validates that every entry in `filter` is a recognized step name.
+///
+/// An empty filter (run all steps) is always valid. Unknown entries are
+/// reported together with the list of valid names so a typo in `--steps`
+/// fails fast instead of silently being ignored.
+fn validate_steps_filter(filter: &[String]) -> Result<()> {
+    let unknown: Vec<&String> = filter
+        .iter()
+        .filter(|s| !STEP_NAMES.contains(&s.as_str()))
+        .collect();
+    if !unknown.is_empty() {
+        let unknown_list = unknown
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        anyhow::bail!(
+            "unknown step(s) in --steps: {unknown_list}\nvalid steps: {}",
+            STEP_NAMES.join(", ")
+        );
+    }
+    Ok(())
+}
+
 // --- Args ---
 
 /// Arguments for `neon setup run`.
@@ -1154,6 +1178,8 @@ pub struct SetupInteractiveArgs {
 /// pipeline order without interactive prompts.  Steps that have no config
 /// section yet are skipped with a note.
 pub fn run_setup_run(args: SetupRunArgs) -> Result<()> {
+    validate_steps_filter(&args.steps)?;
+
     let path = config_path()?;
     let cfg = load_config(&path)?;
     let filter = &args.steps;
@@ -1169,8 +1195,9 @@ pub fn run_setup_run(args: SetupRunArgs) -> Result<()> {
         println!("--- detect ---");
         if dry_run {
             println!("  [dry-run] would run: neon setup detect");
-        } else {
-            run_detect()?;
+        } else if let Err(e) = run_detect() {
+            eprintln!("  error: {e}");
+            any_failed = true;
         }
         println!();
     }
@@ -1189,10 +1216,14 @@ pub fn run_setup_run(args: SetupRunArgs) -> Result<()> {
                     use clap::ValueEnum;
                     match ShellChoice::from_str(&shell_str, true) {
                         Ok(choice) => {
-                            run_pick_shell(PickShellArgs {
+                            let result = run_pick_shell(PickShellArgs {
                                 shell: Some(choice),
                                 dry_run: false,
-                            })?;
+                            });
+                            if let Err(e) = result {
+                                eprintln!("  error: {e}");
+                                any_failed = true;
+                            }
                         }
                         Err(_) => {
                             eprintln!("  error: unknown shell value '{shell_str}' in setup.toml");
@@ -1218,10 +1249,14 @@ pub fn run_setup_run(args: SetupRunArgs) -> Result<()> {
                     use clap::ValueEnum;
                     match TerminalChoice::from_str(&term_str, true) {
                         Ok(choice) => {
-                            run_pick_terminal(PickTerminalArgs {
+                            let result = run_pick_terminal(PickTerminalArgs {
                                 terminal: Some(choice),
                                 dry_run: false,
-                            })?;
+                            });
+                            if let Err(e) = result {
+                                eprintln!("  error: {e}");
+                                any_failed = true;
+                            }
                         }
                         Err(_) => {
                             eprintln!("  error: unknown terminal value '{term_str}' in setup.toml");
@@ -1358,8 +1393,9 @@ pub fn run_setup_run(args: SetupRunArgs) -> Result<()> {
         println!("--- diagnostics ---");
         if dry_run {
             println!("  [dry-run] would run: neon setup diagnostics");
-        } else {
-            run_diagnostics(&DiagnosticsArgs {})?;
+        } else if let Err(e) = run_diagnostics(&DiagnosticsArgs {}) {
+            eprintln!("  error: {e}");
+            any_failed = true;
         }
         println!();
     }
@@ -1400,20 +1436,27 @@ pub fn run_setup_interactive(args: SetupInteractiveArgs) -> Result<()> {
     println!();
 
     let mut any_failed = false;
+    let mut step_results: Vec<(&&str, bool)> = Vec::with_capacity(selected_names.len());
 
     for step in &selected_names {
         println!("--- {step} ---");
         let result = run_interactive_step(step, dry_run);
+        let succeeded = result.is_ok();
         if let Err(e) = result {
             eprintln!("  error in {step}: {e}");
             any_failed = true;
         }
+        step_results.push((step, succeeded));
         println!();
     }
 
     println!("Summary:");
-    for step in &selected_names {
-        println!("  \u{2713} {step}");
+    for (step, succeeded) in &step_results {
+        if *succeeded {
+            println!("  \u{2713} {step}");
+        } else {
+            println!("  \u{2717} {step} (failed)");
+        }
     }
 
     if any_failed {
@@ -1883,6 +1926,28 @@ mod tests {
         assert!(step_enabled(&filter, "claude"));
         assert!(!step_enabled(&filter, "install-languages"));
         assert!(!step_enabled(&filter, "diagnostics"));
+    }
+
+    #[test]
+    fn validate_steps_filter_accepts_empty_and_known_steps() {
+        assert!(validate_steps_filter(&[]).is_ok());
+        let filter = vec!["detect".to_string(), "claude".to_string()];
+        assert!(validate_steps_filter(&filter).is_ok());
+    }
+
+    #[test]
+    fn validate_steps_filter_rejects_unknown_step() {
+        let filter = vec!["detect".to_string(), "pick-shel".to_string()];
+        let err = validate_steps_filter(&filter).expect_err("unknown step should error");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("pick-shel"),
+            "error should name the unknown step: {msg}"
+        );
+        assert!(
+            msg.contains("detect"),
+            "error should list valid step names: {msg}"
+        );
     }
 
     #[test]
